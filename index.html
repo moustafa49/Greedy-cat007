@@ -2,84 +2,70 @@
 <html lang="ar">
 <head>
 <meta charset="UTF-8">
-<title>Greedy Cat — ULTRA AI FINAL</title>
+<title>Greedy Cat — FULL AI</title>
 <style>
-body{font-family:Arial;background:#020617;color:#e5e7eb;margin:0;padding:14px}
+body{font-family:Arial;background:#020617;color:#e5e7eb;padding:12px}
 h1{color:#22c55e}
 .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 button{padding:12px;font-size:22px;background:#0f172a;color:#fff;border:none;border-radius:10px}
-.section{border:1px solid #111827;margin-top:10px;padding:10px;border-radius:12px}
+.active{background:#14532d!important;outline:3px solid #22c55e;transform:scale(1.1)}
+.section{border:1px solid #111827;margin-top:10px;padding:10px;border-radius:10px}
 canvas{background:#000;border-radius:10px}
 </style>
 </head>
 <body>
 
-<h1>🐱 Greedy Cat — ULTRA AI</h1>
+<h1>🐱 Greedy Cat — FULL AI</h1>
 
 <div class="grid">
-<button onclick="add('corn')">🌽</button>
-<button onclick="add('tomato')">🍅</button>
-<button onclick="add('carrot')">🥕</button>
-<button onclick="add('pepper')">🌶️</button>
-<button onclick="add('fish')">🐟</button>
-<button onclick="add('shrimp')">🦐</button>
-<button onclick="add('cow')">🐄</button>
-<button onclick="add('chicken')">🐔</button>
+<button id="corn" onclick="add('corn')">🌽</button>
+<button id="tomato" onclick="add('tomato')">🍅</button>
+<button id="carrot" onclick="add('carrot')">🥕</button>
+<button id="pepper" onclick="add('pepper')">🌶️</button>
+<button id="fish" onclick="add('fish')">🐟</button>
+<button id="shrimp" onclick="add('shrimp')">🦐</button>
+<button id="cow" onclick="add('cow')">🐄</button>
+<button id="chicken" onclick="add('chicken')">🐔</button>
 </div>
 
-<button onclick="undo()">Undo</button>
-<button onclick="reset()">Reset</button>
 <button onclick="toggleBot()">Bot</button>
 <button onclick="toggleAuto()">Auto</button>
+<button onclick="reset()">Reset</button>
 
-<div class="section">History: <div id="history"></div></div>
-<div class="section">Prediction: <div id="prediction"></div></div>
-<div class="section">Next: <div id="next"></div></div>
 <div class="section">Top5: <div id="top5"></div></div>
 <div class="section">Top6: <div id="top6"></div></div>
+<div class="section">Prediction: <div id="prediction"></div></div>
+<div class="section">Next: <div id="next"></div></div>
+<div class="section">Confidence: <div id="conf"></div></div>
 <div class="section">Heatmap: <div id="heat"></div></div>
-<div class="section">Probability: <div id="prob"></div></div>
 <div class="section">Monte Carlo: <div id="monte"></div></div>
-<div class="section">Confidence / Accuracy: <div id="conf"></div><div id="acc"></div></div>
 <div class="section"><canvas id="radar" width="300" height="300"></canvas></div>
 
 <script>
-// ===== DATA =====
-const foods=["corn","tomato","carrot","pepper","fish","shrimp","cow","chicken"]
-const veg=["corn","tomato","carrot","pepper"]
-const meat=["fish","shrimp","cow","chicken"]
-const emoji={corn:"🌽",tomato:"🍅",carrot:"🥕",pepper:"🌶️",fish:"🐟",shrimp:"🦐",cow:"🐄",chicken:"🐔"}
+// ===== VALUES =====
+const value={corn:5,tomato:5,carrot:5,pepper:5,fish:8,shrimp:10,cow:15,chicken:45}
+const foods=Object.keys(value)
 
 // ===== STATE =====
 let history=JSON.parse(localStorage.getItem("h")||"[]")
-let weights=JSON.parse(localStorage.getItem("w")||"{}")
-let loss=JSON.parse(localStorage.getItem("l")||"{}")
 let trans=JSON.parse(localStorage.getItem("t")||"{}")
+let loss=JSON.parse(localStorage.getItem("l")||"{}")
 
 let bot=false,autoMode=false
-let predictions=0,correct=0
-
-foods.forEach(f=>{if(!weights[f])weights[f]=1})
 
 // ===== SAVE =====
 function save(){
 localStorage.setItem("h",JSON.stringify(history))
-localStorage.setItem("w",JSON.stringify(weights))
-localStorage.setItem("l",JSON.stringify(loss))
 localStorage.setItem("t",JSON.stringify(trans))
+localStorage.setItem("l",JSON.stringify(loss))
 }
 
-// ===== CORE =====
+// ===== ADD =====
 function add(f){
 if(window.lastPick){
-predictions++
-if(window.lastPick.includes(f)){correct++; weights[f]+=0.2}
-else{
 window.lastPick.forEach(p=>{
-weights[p]-=0.05
-loss[p]=(loss[p]||0)+1
+if(p!==f) loss[p]=(loss[p]||0)+1
 })
-}
 }
 
 if(history.length){
@@ -89,21 +75,20 @@ trans[prev][f]=(trans[prev][f]||0)+1
 }
 
 history.push(f)
-if(history.length>400)history.shift()
+if(history.length>300)history.shift()
 save()
 update()
 }
 
-function undo(){history.pop();save();update()}
-function reset(){history=[];weights={};loss={};trans={};save();update()}
-
-// ===== LOGIC =====
+// ===== HELPERS =====
 function absence(f){
 let i=history.lastIndexOf(f)
 return i===-1?history.length:history.length-i
 }
 
-function momentum(f){return history.slice(-5).filter(x=>x===f).length}
+function momentum(f){
+return history.slice(-5).filter(x=>x===f).length
+}
 
 function transitionScore(f){
 let last=history[history.length-1]
@@ -116,22 +101,13 @@ function detectTrap(){
 return new Set(history.slice(-6)).size<=3
 }
 
-function heatmap(){
-let m={}
-foods.forEach(f=>m[f]=0)
-for(let i=0;i<history.length-2;i++){
-if(history[i]===history[i+1]) m[history[i+2]]+=2
-}
-return m
-}
-
 // ===== SCORE =====
 function score(f){
 let s=0
 s+=Math.min(absence(f),10)*1.2
 s+=momentum(f)*2
 s+=transitionScore(f)*2
-s+=weights[f]*1.5
+s+=value[f]
 s-= (loss[f]||0)*0.5
 return Math.max(s,0.1)
 }
@@ -145,22 +121,25 @@ if(detectTrap()) sorted.reverse()
 return {scores,sorted,best:sorted[0][0],alt:sorted[1][0]}
 }
 
+// ===== HEATMAP =====
+function heatmap(){
+let m={}
+foods.forEach(f=>m[f]=0)
+for(let i=0;i<history.length-2;i++){
+if(history[i]===history[i+1]) m[history[i+2]]+=2
+}
+return m
+}
+
 // ===== MONTE =====
 function monte(){
 let m={}
 foods.forEach(f=>m[f]=0)
-for(let i=0;i<2000;i++){
-let s={}
-foods.forEach(f=>s[f]=score(f))
-let total=Object.values(s).reduce((a,b)=>a+b,0)
-let r=Math.random()*total
-let c=0
-for(let f of foods){
-c+=s[f]
-if(r<=c){m[f]++;break}
+for(let i=0;i<1000;i++){
+let r=foods[Math.floor(Math.random()*foods.length)]
+m[r]++
 }
-}
-foods.forEach(f=>m[f]=(m[f]/2000*100).toFixed(1))
+foods.forEach(f=>m[f]=(m[f]/10).toFixed(1))
 return m
 }
 
@@ -170,73 +149,70 @@ let ctx=document.getElementById("radar").getContext("2d")
 ctx.clearRect(0,0,300,300)
 let max=Math.max(...Object.values(scores))
 let c=150,r=100
-
 Object.keys(scores).forEach((k,i)=>{
-let ang=(i/foods.length)*2*Math.PI
-let val=scores[k]/max
-let x=c+Math.cos(ang)*r*val
-let y=c+Math.sin(ang)*r*val
-ctx.beginPath();ctx.moveTo(c,c);ctx.lineTo(x,y);ctx.strokeStyle="#22c55e";ctx.stroke()
-ctx.fillText(emoji[k],x,y)
+let a=(i/foods.length)*2*Math.PI
+let v=scores[k]/max
+let x=c+Math.cos(a)*r*v
+let y=c+Math.sin(a)*r*v
+ctx.beginPath();ctx.moveTo(c,c);ctx.lineTo(x,y)
+ctx.strokeStyle="#22c55e";ctx.stroke()
+ctx.fillText(k,x,y)
 })
 }
 
 // ===== UPDATE =====
+function clearHighlight(){
+foods.forEach(f=>{
+let el=document.getElementById(f)
+if(el) el.classList.remove("active")
+})
+}
+
 function update(){
 let p=predict()
 let sorted=p.sorted
 
-let vegTop=sorted.filter(x=>veg.includes(x[0])).map(x=>x[0]).slice(0,3)
-let meatTop=sorted.filter(x=>meat.includes(x[0])).map(x=>x[0]).slice(0,2)
-
-let top5=[...vegTop,...meatTop]
-let meat3=sorted.filter(x=>meat.includes(x[0])).map(x=>x[0]).slice(0,3)
-let top6=[...vegTop,...meat3]
-
+let top5=sorted.slice(0,5).map(x=>x[0])
+let top6=sorted.slice(0,6).map(x=>x[0])
 window.lastPick=top5
 
-document.getElementById("history").innerHTML=history.slice(-15).map(x=>emoji[x]).join(" ")
-document.getElementById("prediction").innerHTML=emoji[p.best]+" OR "+emoji[p.alt]
+document.getElementById("top5").innerHTML=top5.join(" ")
+document.getElementById("top6").innerHTML=top6.join(" ")
+document.getElementById("prediction").innerHTML=p.best
 
-let diff=p.scores[p.best]-p.scores[p.alt]
-document.getElementById("next").innerHTML=emoji[p.best]+" ("+diff.toFixed(1)+")"
+let diff=Math.abs(p.scores[p.best]-p.scores[p.alt])
+document.getElementById("next").innerHTML=p.best+" ("+diff.toFixed(1)+")"
 
-document.getElementById("top5").innerHTML=top5.map(x=>emoji[x]).join(" ")
-document.getElementById("top6").innerHTML=top6.map(x=>emoji[x]).join(" ")
+let conf=((p.scores[p.best]-p.scores[p.alt])/(p.scores[p.best]+1))*100
+conf=Math.max(conf,15)
+document.getElementById("conf").innerHTML=conf.toFixed(1)+"%"
 
 let h=heatmap()
 let bestHeat=Object.entries(h).sort((a,b)=>b[1]-a[1])[0][0]
-document.getElementById("heat").innerHTML=emoji[bestHeat]
-
-let total=Object.values(p.scores).reduce((a,b)=>a+b,0)
-document.getElementById("prob").innerHTML=
-foods.map(f=>emoji[f]+" "+((p.scores[f]/total)*100).toFixed(1)+"%").join(" | ")
+document.getElementById("heat").innerHTML=bestHeat
 
 let mc=monte()
 document.getElementById("monte").innerHTML=
-foods.map(f=>emoji[f]+" "+mc[f]+"%").join(" | ")
-
-let conf=(sorted[0][1]/total)*100
-document.getElementById("conf").innerHTML="Confidence: "+conf.toFixed(1)+"%"
-
-let acc=predictions?((correct/predictions)*100).toFixed(1):0
-document.getElementById("acc").innerHTML="Accuracy: "+acc+"%"
+foods.map(f=>f+" "+mc[f]+"%").join(" | ")
 
 radar(p.scores)
 
 // BOT
-if(bot && p.scores[p.best] > p.scores[p.alt]*1.2){
+if(bot && diff>5){
+clearHighlight()
+document.getElementById(p.best).classList.add("active")
 add(p.best)
 }
 
 // AUTO
-if(autoMode && conf>45){
+if(autoMode && conf>35){
 add(p.best)
 }
 }
 
 function toggleBot(){bot=!bot}
 function toggleAuto(){autoMode=!autoMode}
+function reset(){history=[];trans={};loss={};save();update()}
 
 update()
 </script>
