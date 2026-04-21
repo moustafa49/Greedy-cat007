@@ -2,26 +2,19 @@
 <html lang="ar">
 <head>
 <meta charset="UTF-8">
-<title>Greedy Cat — LEGEND AI FINAL</title>
+<title>Greedy Cat — ULTRA AI FINAL</title>
 <style>
-body{font-family:Arial;background:#020617;color:#e5e7eb;margin:0;padding:16px}
-h1{color:#22c55e;margin:8px 0 16px}
-.wrap{max-width:980px;margin:auto}
-.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}
-button{padding:14px;font-size:26px;background:#0f172a;color:#fff;border:none;border-radius:12px;cursor:pointer}
-button:hover{background:#1e293b}
-.bar{display:flex;gap:10px;flex-wrap:wrap;margin:8px 0}
-.section{border:1px solid #111827;border-radius:14px;padding:12px;margin-top:12px}
-.title{font-weight:bold;color:#22c55e;margin-bottom:6px}
-.big{font-size:22px}
-.small{font-size:14px;color:#9ca3af}
-canvas{background:#000;border-radius:12px}
+body{font-family:Arial;background:#020617;color:#e5e7eb;margin:0;padding:14px}
+h1{color:#22c55e}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+button{padding:12px;font-size:22px;background:#0f172a;color:#fff;border:none;border-radius:10px}
+.section{border:1px solid #111827;margin-top:10px;padding:10px;border-radius:12px}
+canvas{background:#000;border-radius:10px}
 </style>
 </head>
 <body>
 
-<div class="wrap">
-<h1>🐱 Greedy Cat — LEGEND AI FINAL</h1>
+<h1>🐱 Greedy Cat — ULTRA AI</h1>
 
 <div class="grid">
 <button onclick="add('corn')">🌽</button>
@@ -34,49 +27,46 @@ canvas{background:#000;border-radius:12px}
 <button onclick="add('chicken')">🐔</button>
 </div>
 
-<div class="bar">
 <button onclick="undo()">Undo</button>
 <button onclick="reset()">Reset</button>
 <button onclick="toggleBot()">Bot</button>
 <button onclick="toggleAuto()">Auto</button>
-</div>
 
-<div class="section"><div class="title">History</div><div id="history"></div></div>
-<div class="section"><div class="title">Prediction</div><div id="prediction" class="big"></div><div id="why" class="small"></div></div>
-<div class="section"><div class="title">Top Picks</div><div id="top5" class="big"></div></div>
-<div class="section"><div class="title">Probability</div><div id="prob"></div></div>
-<div class="section"><div class="title">Monte Carlo</div><div id="monte"></div></div>
-<div class="section"><div class="title">Confidence / Accuracy</div><div id="confidence"></div><div id="accuracy"></div></div>
-<div class="section"><canvas id="radar" width="320" height="320"></canvas></div>
-
-</div>
+<div class="section">History: <div id="history"></div></div>
+<div class="section">Prediction: <div id="prediction"></div></div>
+<div class="section">Next: <div id="next"></div></div>
+<div class="section">Top5: <div id="top5"></div></div>
+<div class="section">Top6: <div id="top6"></div></div>
+<div class="section">Heatmap: <div id="heat"></div></div>
+<div class="section">Probability: <div id="prob"></div></div>
+<div class="section">Monte Carlo: <div id="monte"></div></div>
+<div class="section">Confidence / Accuracy: <div id="conf"></div><div id="acc"></div></div>
+<div class="section"><canvas id="radar" width="300" height="300"></canvas></div>
 
 <script>
 // ===== DATA =====
 const foods=["corn","tomato","carrot","pepper","fish","shrimp","cow","chicken"]
 const veg=["corn","tomato","carrot","pepper"]
 const meat=["fish","shrimp","cow","chicken"]
-
 const emoji={corn:"🌽",tomato:"🍅",carrot:"🥕",pepper:"🌶️",fish:"🐟",shrimp:"🦐",cow:"🐄",chicken:"🐔"}
-const value={corn:5,tomato:5,carrot:5,pepper:5,fish:8,shrimp:10,cow:15,chicken:45}
 
 // ===== STATE =====
-let history=JSON.parse(localStorage.getItem("gc_history")||"[]")
-let transition=JSON.parse(localStorage.getItem("gc_trans")||"{}")
-let weights=JSON.parse(localStorage.getItem("gc_weights")||"{}")
-let lossMemory=JSON.parse(localStorage.getItem("gc_loss")||"{}")
+let history=JSON.parse(localStorage.getItem("h")||"[]")
+let weights=JSON.parse(localStorage.getItem("w")||"{}")
+let loss=JSON.parse(localStorage.getItem("l")||"{}")
+let trans=JSON.parse(localStorage.getItem("t")||"{}")
 
-let bot=false, autoMode=false
-let predictions=0, correct=0
+let bot=false,autoMode=false
+let predictions=0,correct=0
 
-foods.forEach(f=>{ if(!weights[f]) weights[f]=1 })
+foods.forEach(f=>{if(!weights[f])weights[f]=1})
 
 // ===== SAVE =====
 function save(){
-localStorage.setItem("gc_history",JSON.stringify(history))
-localStorage.setItem("gc_trans",JSON.stringify(transition))
-localStorage.setItem("gc_weights",JSON.stringify(weights))
-localStorage.setItem("gc_loss",JSON.stringify(lossMemory))
+localStorage.setItem("h",JSON.stringify(history))
+localStorage.setItem("w",JSON.stringify(weights))
+localStorage.setItem("l",JSON.stringify(loss))
+localStorage.setItem("t",JSON.stringify(trans))
 }
 
 // ===== CORE =====
@@ -87,27 +77,27 @@ if(window.lastPick.includes(f)){correct++; weights[f]+=0.2}
 else{
 window.lastPick.forEach(p=>{
 weights[p]-=0.05
-if(p!==f) lossMemory[p]=(lossMemory[p]||0)+1
+loss[p]=(loss[p]||0)+1
 })
 }
 }
 
 if(history.length){
 let prev=history[history.length-1]
-if(!transition[prev]) transition[prev]={}
-transition[prev][f]=(transition[prev][f]||0)+1
+if(!trans[prev]) trans[prev]={}
+trans[prev][f]=(trans[prev][f]||0)+1
 }
 
 history.push(f)
-if(history.length>500) history.shift()
+if(history.length>400)history.shift()
 save()
 update()
 }
 
-function undo(){history.pop(); save(); update()}
-function reset(){history=[]; transition={}; weights={}; lossMemory={}; foods.forEach(f=>weights[f]=1); save(); update()}
+function undo(){history.pop();save();update()}
+function reset(){history=[];weights={};loss={};trans={};save();update()}
 
-// ===== HELPERS =====
+// ===== LOGIC =====
 function absence(f){
 let i=history.lastIndexOf(f)
 return i===-1?history.length:history.length-i
@@ -115,37 +105,25 @@ return i===-1?history.length:history.length-i
 
 function momentum(f){return history.slice(-5).filter(x=>x===f).length}
 
-function weightedHistoryScore(f){
-let s=0
-history.forEach((x,i)=>{
-let w=(i+1)/history.length
-if(x===f) s+=w
-})
-return s
-}
-
 function transitionScore(f){
 let last=history[history.length-1]
-if(!transition[last]) return 0
-let total=Object.values(transition[last]).reduce((a,b)=>a+b,0)
-return total?((transition[last][f]||0)/total)*5:0
+if(!trans[last]) return 0
+let total=Object.values(trans[last]).reduce((a,b)=>a+b,0)
+return total?((trans[last][f]||0)/total)*5:0
 }
 
-function detectManipulation(){
-let last=history.slice(-6)
-return new Set(last).size<=3
+function detectTrap(){
+return new Set(history.slice(-6)).size<=3
 }
 
-function antiTrapScore(f){
-let last=history.slice(-5)
-let count=last.filter(x=>x===f).length
-if(count>=3) return -5
-if(last.every(x=>veg.includes(x)) && meat.includes(f)) return 5
-if(last.every(x=>meat.includes(x)) && veg.includes(f)) return 5
-return 0
+function heatmap(){
+let m={}
+foods.forEach(f=>m[f]=0)
+for(let i=0;i<history.length-2;i++){
+if(history[i]===history[i+1]) m[history[i+2]]+=2
 }
-
-function lossPenalty(f){return (lossMemory[f]||0)*0.5}
+return m
+}
 
 // ===== SCORE =====
 function score(f){
@@ -153,11 +131,8 @@ let s=0
 s+=Math.min(absence(f),10)*1.2
 s+=momentum(f)*2
 s+=transitionScore(f)*2
-s+=value[f]/5
 s+=weights[f]*1.5
-s+=weightedHistoryScore(f)*3
-s+=antiTrapScore(f)
-s-=lossPenalty(f)
+s-= (loss[f]||0)*0.5
 return Math.max(s,0.1)
 }
 
@@ -165,51 +140,49 @@ return Math.max(s,0.1)
 function predict(){
 let scores={}
 foods.forEach(f=>scores[f]=score(f))
-
 let sorted=Object.entries(scores).sort((a,b)=>b[1]-a[1])
-if(detectManipulation()) sorted.reverse()
-
+if(detectTrap()) sorted.reverse()
 return {scores,sorted,best:sorted[0][0],alt:sorted[1][0]}
 }
 
 // ===== MONTE =====
-function monteCarlo(){
-let sim={}
-foods.forEach(f=>sim[f]=0)
-
+function monte(){
+let m={}
+foods.forEach(f=>m[f]=0)
 for(let i=0;i<2000;i++){
 let s={}
 foods.forEach(f=>s[f]=score(f))
 let total=Object.values(s).reduce((a,b)=>a+b,0)
 let r=Math.random()*total
 let c=0
-for(let f of foods){c+=s[f]; if(r<=c){sim[f]++;break}}
+for(let f of foods){
+c+=s[f]
+if(r<=c){m[f]++;break}
+}
+}
+foods.forEach(f=>m[f]=(m[f]/2000*100).toFixed(1))
+return m
 }
 
-foods.forEach(f=>sim[f]=(sim[f]/2000*100).toFixed(1))
-return sim
-}
-
-// ===== UI =====
-function drawRadar(scores){
+// ===== RADAR =====
+function radar(scores){
 let ctx=document.getElementById("radar").getContext("2d")
-ctx.clearRect(0,0,320,320)
-let center=160, r=110
+ctx.clearRect(0,0,300,300)
 let max=Math.max(...Object.values(scores))
+let c=150,r=100
+
 Object.keys(scores).forEach((k,i)=>{
-let angle=(i/foods.length)*2*Math.PI
+let ang=(i/foods.length)*2*Math.PI
 let val=scores[k]/max
-let x=center+Math.cos(angle)*r*val
-let y=center+Math.sin(angle)*r*val
-ctx.beginPath(); ctx.moveTo(center,center); ctx.lineTo(x,y)
-ctx.strokeStyle="#22c55e"; ctx.stroke()
+let x=c+Math.cos(ang)*r*val
+let y=c+Math.sin(ang)*r*val
+ctx.beginPath();ctx.moveTo(c,c);ctx.lineTo(x,y);ctx.strokeStyle="#22c55e";ctx.stroke()
 ctx.fillText(emoji[k],x,y)
 })
 }
 
 // ===== UPDATE =====
 function update(){
-
 let p=predict()
 let sorted=p.sorted
 
@@ -217,42 +190,51 @@ let vegTop=sorted.filter(x=>veg.includes(x[0])).map(x=>x[0]).slice(0,3)
 let meatTop=sorted.filter(x=>meat.includes(x[0])).map(x=>x[0]).slice(0,2)
 
 let top5=[...vegTop,...meatTop]
+let meat3=sorted.filter(x=>meat.includes(x[0])).map(x=>x[0]).slice(0,3)
+let top6=[...vegTop,...meat3]
+
 window.lastPick=top5
 
-document.getElementById("history").innerHTML=history.slice(-20).map(x=>emoji[x]).join(" ")
+document.getElementById("history").innerHTML=history.slice(-15).map(x=>emoji[x]).join(" ")
 document.getElementById("prediction").innerHTML=emoji[p.best]+" OR "+emoji[p.alt]
-document.getElementById("why").innerHTML="Smart AI Decision"
+
+let diff=p.scores[p.best]-p.scores[p.alt]
+document.getElementById("next").innerHTML=emoji[p.best]+" ("+diff.toFixed(1)+")"
+
 document.getElementById("top5").innerHTML=top5.map(x=>emoji[x]).join(" ")
+document.getElementById("top6").innerHTML=top6.map(x=>emoji[x]).join(" ")
+
+let h=heatmap()
+let bestHeat=Object.entries(h).sort((a,b)=>b[1]-a[1])[0][0]
+document.getElementById("heat").innerHTML=emoji[bestHeat]
 
 let total=Object.values(p.scores).reduce((a,b)=>a+b,0)
-
 document.getElementById("prob").innerHTML=
 foods.map(f=>emoji[f]+" "+((p.scores[f]/total)*100).toFixed(1)+"%").join(" | ")
 
-let monte=monteCarlo()
+let mc=monte()
 document.getElementById("monte").innerHTML=
-foods.map(f=>emoji[f]+" "+monte[f]+"%").join(" | ")
+foods.map(f=>emoji[f]+" "+mc[f]+"%").join(" | ")
 
 let conf=(sorted[0][1]/total)*100
-document.getElementById("confidence").innerHTML="Confidence: "+conf.toFixed(1)+"%"
+document.getElementById("conf").innerHTML="Confidence: "+conf.toFixed(1)+"%"
 
 let acc=predictions?((correct/predictions)*100).toFixed(1):0
-document.getElementById("accuracy").innerHTML="Accuracy: "+acc+"%"
+document.getElementById("acc").innerHTML="Accuracy: "+acc+"%"
 
-drawRadar(p.scores)
+radar(p.scores)
 
 // BOT
-if(bot && p.scores[p.best]>p.scores[p.alt]*1.2){
+if(bot && p.scores[p.best] > p.scores[p.alt]*1.2){
 add(p.best)
 }
 
 // AUTO
-if(autoMode && conf>40){
+if(autoMode && conf>45){
 add(p.best)
 }
 }
 
-// ===== CONTROLS =====
 function toggleBot(){bot=!bot}
 function toggleAuto(){autoMode=!autoMode}
 
