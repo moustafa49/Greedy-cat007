@@ -4,12 +4,13 @@
 <meta charset="UTF-8">
 <title>Greedy Cat AI FINAL</title>
 <style>
-body{font-family:Arial;background:#020617;color:#fff;padding:10px;text-align:center}
+body{font-family:Arial;background:#020617;color:#fff;text-align:center;padding:10px}
 h1{color:#22c55e}
-.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
-button{font-size:26px;padding:15px;border-radius:12px;border:none;background:#0f172a;color:#fff}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:10px}
+button{font-size:24px;padding:14px;border:none;border-radius:12px;background:#0f172a;color:#fff}
 .active{background:#14532d!important;outline:3px solid #22c55e;transform:scale(1.1)}
-.section{margin-top:12px;border:1px solid #111827;padding:10px;border-radius:12px}
+.section{border:1px solid #111827;margin-top:10px;padding:10px;border-radius:10px}
+#history{font-size:22px;line-height:1.6}
 canvas{background:#000;border-radius:10px}
 </style>
 </head>
@@ -28,19 +29,20 @@ canvas{background:#000;border-radius:10px}
 <button id="chicken" onclick="add('chicken')">🐔</button>
 </div>
 
-<button onclick="toggleBot()">Bot</button>
+<button id="botBtn" onclick="toggleBot()">Bot: OFF</button>
 <button onclick="reset()">Reset</button>
 
+<div class="section">History: <div id="history"></div></div>
 <div class="section">Prediction: <div id="pred"></div></div>
 <div class="section">WHY: <div id="why"></div></div>
 <div class="section">Top5: <div id="top5"></div></div>
 <div class="section">Top6: <div id="top6"></div></div>
-<div class="section">Wave/Trap/Bias: <div id="state"></div></div>
+<div class="section">Wave/Trap: <div id="state"></div></div>
 <div class="section">Monte Carlo: <div id="monte"></div></div>
 <div class="section"><canvas id="radar" width="300" height="300"></canvas></div>
 
 <script>
-
+// ===== DATA =====
 const foods=["corn","tomato","carrot","pepper","fish","shrimp","cow","chicken"]
 const veg=["corn","tomato","carrot","pepper"]
 const meat=["fish","shrimp","cow","chicken"]
@@ -55,42 +57,23 @@ const value={corn:5,tomato:5,carrot:5,pepper:5,fish:8,shrimp:10,cow:15,chicken:4
 // ===== STATE =====
 let history=JSON.parse(localStorage.getItem("h")||"[]")
 let trans=JSON.parse(localStorage.getItem("t")||"{}")
-let loss=JSON.parse(localStorage.getItem("l")||"{}")
-let weights=JSON.parse(localStorage.getItem("w")||"{}")
 let bot=false
-
-foods.forEach(f=>{if(!weights[f])weights[f]=1})
+let botInterval=null
 
 function save(){
 localStorage.setItem("h",JSON.stringify(history))
 localStorage.setItem("t",JSON.stringify(trans))
-localStorage.setItem("l",JSON.stringify(loss))
-localStorage.setItem("w",JSON.stringify(weights))
 }
 
 // ===== ADD =====
 function add(f){
-
-if(window.lastPick){
-if(!window.lastPick.includes(f)){
-window.lastPick.forEach(p=>{
-loss[p]=(loss[p]||0)+1
-weights[p]-=0.1
-})
-}else{
-weights[f]+=0.2
-}
-}
-
 if(history.length){
 let prev=history[history.length-1]
 if(!trans[prev]) trans[prev]={}
 trans[prev][f]=(trans[prev][f]||0)+1
 }
-
 history.push(f)
-if(history.length>400)history.shift()
-
+if(history.length>200)history.shift()
 save()
 update()
 }
@@ -121,15 +104,15 @@ return total?((trans[last][f]||0)/total)*5:0
 }
 
 function score(f){
+if(history.length<5) return value[f]*10
+
 let s=0
 s+=value[f]*3
-s+=momentum(f)*value[f]*1.5
+s+=momentum(f)*value[f]
 s+=pattern(f)*2
 s+=transitionScore(f)*value[f]
 s+=Math.min(absence(f),10)
-s+=weights[f]*5
-s-=(loss[f]||0)*2
-return Math.max(s,0.1)
+return s
 }
 
 // ===== AI =====
@@ -153,21 +136,14 @@ let last=history.slice(-5)
 return new Set(last).size<=2?"Trap":"Normal"
 }
 
-function bias(){
-let last=history.slice(-10)
-for(let f of foods){
-if(last.filter(x=>x===f).length>=4) return emoji[f]
-}
-return "None"
-}
-
 // ===== MONTE =====
 function monte(scores){
 let sim={}
 foods.forEach(f=>sim[f]=0)
-
-for(let i=0;i<2000;i++){
 let total=Object.values(scores).reduce((a,b)=>a+b,0)
+if(total===0){foods.forEach(f=>sim[f]=12.5);return sim}
+
+for(let i=0;i<1000;i++){
 let r=Math.random()*total
 let c=0
 for(let f of foods){
@@ -175,54 +151,48 @@ c+=scores[f]
 if(r<=c){sim[f]++;break}
 }
 }
-
-foods.forEach(f=>sim[f]=(sim[f]/20).toFixed(1))
+foods.forEach(f=>sim[f]=(sim[f]/10).toFixed(1))
 return sim
 }
 
 // ===== UI =====
 function update(){
 
+// history
+document.getElementById("history").innerHTML=
+history.slice(-20).map(x=>emoji[x]).join(" ")
+
 let p=predict()
 let sorted=p.sorted
 
-// Top5
+// top5
 let vegTop=sorted.filter(x=>veg.includes(x[0])).slice(0,3).map(x=>x[0])
 let meatTop=sorted.filter(x=>meat.includes(x[0])).slice(0,2).map(x=>x[0])
 let top5=[...vegTop,...meatTop]
 
-// منع 4 خضار
-if(top5.filter(x=>veg.includes(x)).length>3){
-top5.pop()
-top5.push(meatTop[0])
-}
-
-// Top6
+// top6
 let meat3=sorted.filter(x=>meat.includes(x[0])).slice(0,3).map(x=>x[0])
 let top6=[...vegTop,...meat3]
 
-window.lastPick=top5
+// why
+let why="Val:"+value[p.best]+" Mom:"+momentum(p.best)+" Abs:"+absence(p.best)
 
-// WHY
-let why="Val:"+value[p.best]+" | Mom:"+momentum(p.best)+" | Abs:"+absence(p.best)
-
-// عرض
+// render
 document.getElementById("pred").innerHTML=emoji[p.best]+" OR "+emoji[p.alt]
 document.getElementById("why").innerHTML=why
 document.getElementById("top5").innerHTML=top5.map(x=>emoji[x]).join(" ")
 document.getElementById("top6").innerHTML=top6.map(x=>emoji[x]).join(" ")
-document.getElementById("state").innerHTML=wave()+" / "+trap()+" / "+bias()
+document.getElementById("state").innerHTML=wave()+" / "+trap()
 
 let mc=monte(p.scores)
 document.getElementById("monte").innerHTML=
 foods.map(f=>emoji[f]+" "+mc[f]+"%").join(" | ")
 
-// Radar
+// radar
 let ctx=document.getElementById("radar").getContext("2d")
 ctx.clearRect(0,0,300,300)
 let max=Math.max(...Object.values(p.scores))
 let c=150,r=100
-
 foods.forEach((f,i)=>{
 let a=(i/foods.length)*2*Math.PI
 let v=p.scores[f]/max
@@ -231,21 +201,47 @@ let y=c+Math.sin(a)*r*v
 ctx.beginPath();ctx.moveTo(c,c);ctx.lineTo(x,y)
 ctx.strokeStyle="#22c55e";ctx.stroke()
 })
+}
 
-// BOT
-if(bot){
-foods.forEach(f=>document.getElementById(f).classList.remove("active"))
+// ===== BOT LOOP =====
+function runBot(){
+let p=predict()
+let diff=Math.abs(p.scores[p.best]-p.scores[p.alt])
+
+foods.forEach(f=>{
+let el=document.getElementById(f)
+if(el) el.classList.remove("active")
+})
+
+if(diff>2){
 let el=document.getElementById(p.best)
-if(el){el.classList.add("active");add(p.best)}
+if(el) el.classList.add("active")
+add(p.best)
 }
 }
 
-function toggleBot(){bot=!bot}
-function reset(){history=[];trans={};loss={};weights={};save();update()}
+function toggleBot(){
+bot=!bot
+let btn=document.getElementById("botBtn")
+
+if(bot){
+btn.innerText="Bot: ON"
+botInterval=setInterval(runBot,1500)
+}else{
+btn.innerText="Bot: OFF"
+clearInterval(botInterval)
+}
+}
+
+// ===== RESET =====
+function reset(){
+history=[]
+trans={}
+save()
+update()
+}
 
 update()
-
 </script>
-
 </body>
 </html>
